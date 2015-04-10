@@ -31,6 +31,8 @@ This should be set to activate every second. The first action should be 'Run' on
 
 This is an airtight door, any type. It must be separated from the main airlock chamber by a vented window. The other side of this door must be in the zero pressure area. If the airlock is unable to de-pressurise within the specified time limit (default 5s), this door is opened before the exterior doors. This prevents explosive decompression, your character will not experience any of the normal effects.
 
+The safety valve is optional. If your airlock doesn't need this, you don't need to add it.
+
 ### Interior Door
 
 **Name** ```<AIRLOCK_PREFIX> Interior Door```
