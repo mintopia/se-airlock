@@ -17,11 +17,17 @@ namespace Airlock
         IMyGridTerminalSystem GridTerminalSystem = null;
 #endregion
 #region CodeEditor
+        // This is the prefix for all the blocks and groups for the airlock
         const string AIRLOCK_PREFIX = "Station Airlock";
 
+        // This is how long in ticks (normally seconds) to wait for vents and doors to open/close/depressurize
         const int VENT_TIMEOUT = 5;
         const int DOOR_TIMEOUT = 5;
 
+        /* Nothing from here on needs editing */
+
+        // State Table
+        const int _state_NONE = 0;
         const int _state_READY = 1;
         const int _state_LOCKED = 2;
         const int _state_WAITING_FOR_PRESSURE = 3;
@@ -29,9 +35,26 @@ namespace Airlock
         const int _state_WAITING_FOR_EXTERIOR_DOORS = 5;
         const int _state_WAITING_FOR_INTERIOR_DOORS = 6;
 
-        int currentState = _state_READY;
+        // The names of our sensor groups
+        const string _sensor_INTERIOR = AIRLOCK_PREFIX + " Internal Sensors";
+        const string _sensor_EXTERIOR = AIRLOCK_PREFIX + " External Sensors";
+        const string _sensor_CHAMBER = AIRLOCK_PREFIX + " Chamber Sensors";
+
+        // The names of our door groups
+        const string _door_INTERIOR = AIRLOCK_PREFIX + " Internal Doors";
+        const string _door_EXTERIOR = AIRLOCK_PREFIX + " External Doors";
+
+        // One-off blocks that are needed
+        const string _VENTS = AIRLOCK_PREFIX + " Vents";
+        const string _VALVE = AIRLOCK_PREFIX + " Valve";
+        const string _TIMER = AIRLOCK_PREFIX + " Timer";
+        const string _DEBUG = AIRLOCK_PREFIX + " Debug";
+
+        // The current state and tick counter
+        int currentState = _state_NONE;
         int currentTick = 0;
 
+        // The debug logs
         List<string> logs = new List<string>();
 
         void Main()
@@ -40,6 +63,10 @@ namespace Airlock
 
             switch (GetState())
             {
+                case _state_NONE:
+                    Initialise();
+                    break;
+
                 case _state_LOCKED:
                     break;
 
@@ -87,14 +114,19 @@ namespace Airlock
             RenderDebug();
         }
 
-        // Actions     
+        // Actions
+
+        void Initialise()
+        {
+            SetState(_state_READY);
+        }    
 
         void StartAirlock()
         {
             SetState(_state_LOCKED);
 
             // Detect what's happening from what sensor  
-            if (IsActive(AIRLOCK_PREFIX + " Chamber Sensor"))
+            if (IsActive(_sensor_CHAMBER))
             {
                 if (AreInteriorDoorsClosed())
                 {
@@ -109,7 +141,7 @@ namespace Airlock
                 return;
             }
 
-            if (IsActive(AIRLOCK_PREFIX + " Interior Sensor"))
+            if (IsActive(_sensor_INTERIOR))
             {
                 // They walked up to the interior sensor  
                 if (AreInteriorDoorsClosed())
@@ -119,7 +151,7 @@ namespace Airlock
                 }
             }
 
-            if (IsActive(AIRLOCK_PREFIX + " Exterior Sensor"))
+            if (IsActive(_sensor_EXTERIOR))
             {
                 if (AreExteriorDoorsClosed())
                 {
@@ -197,38 +229,57 @@ namespace Airlock
                 DebugOutput("Closing safety valve");
                 CloseValve();
             }
-            DebugOutput("Enabling vent");
-            IMyAirVent vent = GetVent(); 
-            vent.GetActionWithName("Depressurize").Apply(vent);
+            DebugOutput("Pressurising vent");
+            ApplyAction(GetVents(), "Depressurize");
         }
 
         void DisableOxygen()
-        {
-            IMyAirVent vent = GetVent();  
-            DebugOutput("Depressurizing vent");
-            vent.GetActionWithName("Depressurize").Apply(vent);
+        {  
+            DebugOutput("Depressurising vents");
+            ApplyAction(GetVents(), "Depressurize");
         }
 
         // Library Functions
 
-        IMyAirVent GetVent()
+        void ApplyAction<T>(IList<T> objects, string actionName)
         {
-            var vent = GridTerminalSystem.GetBlockWithName(AIRLOCK_PREFIX + " Vent") as IMyAirVent;
-            if (vent == null)
+            for (int i = 0; i < objects.Count; i++)
             {
-                throw new Exception("Unable to find air vent");
+                var block = objects[i] as IMyTerminalBlock;
+                ITerminalAction action = block.GetActionWithName(actionName);
+                if (action == null)
+                {
+                    throw new Exception("Unable to find " + actionName + " action");
+                }
+                action.Apply(block);
             }
-            return vent;
+        }
+
+        IList<T> GetGroup<T>(string groupName)
+        {
+            for (int i = 0; i < GridTerminalSystem.BlockGroups.Count; i++)
+            {
+                if (GridTerminalSystem.BlockGroups[i].Name == groupName)
+                {
+                    return GridTerminalSystem.BlockGroups[i].Blocks.OfType<T>().ToList();
+                }
+            }
+            return new List<T>();
+        }
+
+        IList<IMyAirVent> GetVents()
+        {
+            return GetGroup<IMyAirVent>(_VENTS);
         }
 
         IMyDoor GetValve()
         {
-            return GridTerminalSystem.GetBlockWithName(AIRLOCK_PREFIX + " Valve") as IMyDoor;
+            return GridTerminalSystem.GetBlockWithName(_VALVE) as IMyDoor;
         }
 
         IMyTimerBlock GetTimer()
         {
-            var timer = GridTerminalSystem.GetBlockWithName(AIRLOCK_PREFIX + " Timer") as IMyTimerBlock;
+            var timer = GridTerminalSystem.GetBlockWithName(_TIMER) as IMyTimerBlock;
             if (timer == null)
             {
                 throw new Exception("Unable to find timer");
@@ -236,49 +287,17 @@ namespace Airlock
             return timer;
         }
 
-        IMyInteriorLight GetLight()
+        IList<IMySensorBlock> GetSensors(string name)
         {
-            var light = GridTerminalSystem.GetBlockWithName(AIRLOCK_PREFIX + " Variable Light") as IMyInteriorLight;
-            if (light == null)
-            {
-                throw new Exception("Unable to find state light for airlock");
-            }
-            return light;
+            return GetGroup<IMySensorBlock>(name);
         }
 
-        IMySensorBlock GetSensor(string name)
+        IList<IMyDoor> GetDoors(string name)
         {
-            var sensor = GridTerminalSystem.GetBlockWithName(name) as IMySensorBlock;
-            if (sensor == null)
-            {
-                throw new Exception("Unable to find sensor");
-            }
-            return (IMySensorBlock)sensor;
+            return GetGroup<IMyDoor>(name);
         }
 
-        List<IMyDoor> GetDoors(string name)
-        {
-            List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
-            List<IMyDoor> doors = new List<IMyDoor>();
-            GridTerminalSystem.SearchBlocksOfName(name, blocks);
-            for (int i = 0; i < blocks.Count; i++)
-            {
-                doors.Add(blocks[i] as IMyDoor);
-            }
-            return doors;
-        }
-
-        List<IMyTextPanel> GetTextPanels(string name)
-        {
-            List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
-            List<IMyTextPanel> panels = new List<IMyTextPanel>();
-            GridTerminalSystem.SearchBlocksOfName(name, blocks);
-            for (int i = 0; i < blocks.Count; i++)
-            {
-                panels.Add(blocks[i] as IMyTextPanel);
-            }
-            return panels;
-        }
+        // State and Ticks
 
         int GetState()
         {
@@ -331,46 +350,43 @@ namespace Airlock
 
         int GetOxygenLevel()
         {
-            IMyAirVent vent = GetVent();
-            return (int)Math.Round((Decimal)(vent.GetOxygenLevel() * 100), 0);
+            IList<IMyAirVent> vents = GetVents();
+            if (vents.Count == 0)
+            {
+                return 0;
+            }
+
+            return (int)Math.Round((Decimal)(vents[0].GetOxygenLevel() * 100), 0);
         }
 
         void OpenDoors(string name)
         {
-            List<IMyDoor> doors = GetDoors(name);
-            for (int i = 0; i < doors.Count; i++)
-            {
-                doors[i].GetActionWithName("Open_On").Apply(doors[i]);
-            }
+            ApplyAction(GetDoors(name), "Open_On");
         }
 
         void CloseDoors(string name)
         {
-            List<IMyDoor> doors = GetDoors(name);
-            for (int i = 0; i < doors.Count; i++)
-            {
-                doors[i].GetActionWithName("Open_Off").Apply(doors[i]);
-            }
+            ApplyAction(GetDoors(name), "Open_Off");
         }
 
         void CloseInteriorDoors()
         {
-            CloseDoors(AIRLOCK_PREFIX + " Interior Door");
+            CloseDoors(_door_INTERIOR);
         }
 
         void OpenInteriorDoors()
         {
-            OpenDoors(AIRLOCK_PREFIX + " Interior Door");
+            OpenDoors(_door_INTERIOR);
         }
 
         void OpenExteriorDoors()
         {
-            OpenDoors(AIRLOCK_PREFIX + " Exterior Door");
+            OpenDoors(_door_EXTERIOR);
         }
 
         void CloseExteriorDoors()
         {
-            CloseDoors(AIRLOCK_PREFIX + " Exterior Door");
+            CloseDoors(_door_EXTERIOR);
         }
 
         void OpenValve()
@@ -406,7 +422,7 @@ namespace Airlock
 
         bool AreDoorsClosed(string name)
         {
-            List<IMyDoor> doors = GetDoors(name);
+            IList<IMyDoor> doors = GetDoors(name);
             for (int i = 0; i < doors.Count; i++)
             {
                 if (doors[i].Open)
@@ -419,56 +435,72 @@ namespace Airlock
 
         bool AreExteriorDoorsClosed()
         {
-            return AreDoorsClosed(AIRLOCK_PREFIX + " Exterior Door");
+            return AreDoorsClosed(_door_EXTERIOR);
         }
 
         bool AreInteriorDoorsClosed()
         {
-            return AreDoorsClosed(AIRLOCK_PREFIX + " Interior Door");
+            return AreDoorsClosed(_door_INTERIOR);
         }
 
         bool IsActive(string name)
         {
-            var sensor = GetSensor(name);
-            if (sensor.IsActive)
+            IList<IMySensorBlock> sensors = GetSensors(name);
+            for (int i = 0; i < sensors.Count; i++)
             {
-                DebugOutput(name + " Activated");
+                if (sensors[i].IsActive)
+                {
+                    DebugOutput(name + " Activated");
+                    return true;
+                }
             }
-            return sensor.IsActive;
+            return false;
         }
 
-        void EnableSensor(string name)
+        void EnableSensors(string name)
         {
-            var sensor = GetSensor(name);
-            sensor.GetActionWithName("OnOff_On").Apply(sensor);
+            ApplyAction(GetSensors(name), "OnOff_On");
         }
 
         void DisableSensor(string name)
         {
-            var sensor = GetSensor(name);
-            sensor.GetActionWithName("OnOff_Off").Apply(sensor);
+            ApplyAction(GetSensors(name), "OnOff_Off");
         }
 
         void EnableExteriorSensor()
         {
-            EnableSensor(AIRLOCK_PREFIX + " Exterior Sensor");
+            EnableSensors(_sensor_EXTERIOR);
         }
 
         void EnableInteriorSensor()
         {
-            EnableSensor(AIRLOCK_PREFIX + " Interior Sensor");
+            EnableSensors(_sensor_INTERIOR);
         }
 
         void EnableChamberSensor()
         {
-            EnableSensor(AIRLOCK_PREFIX + " Chamber Sensor");
+            EnableSensors(_sensor_CHAMBER);
         }
 
         void DisableSensors()
         {
-            DisableSensor(AIRLOCK_PREFIX + " Exterior Sensor");
-            DisableSensor(AIRLOCK_PREFIX + " Interior Sensor");
-            DisableSensor(AIRLOCK_PREFIX + " Chamber Sensor");
+            DisableSensor(_sensor_EXTERIOR);
+            DisableSensor(_sensor_INTERIOR);
+            DisableSensor(_sensor_CHAMBER);
+        }
+
+        // Debug functionality
+
+        List<IMyTextPanel> GetDebugPanels()
+        {
+            List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
+            List<IMyTextPanel> panels = new List<IMyTextPanel>();
+            GridTerminalSystem.SearchBlocksOfName(_DEBUG, blocks);
+            for (int i = 0; i < blocks.Count; i++)
+            {
+                panels.Add(blocks[i] as IMyTextPanel);
+            }
+            return panels;
         }
 
         void DebugOutput(string message)
@@ -496,39 +528,51 @@ namespace Airlock
             RenderDebug();
         }
 
-        void RenderDebug()
+        string GetAirlockStatus()
         {
-            string status = "";
             switch (currentState)
             {
                 case _state_WAITING_FOR_PRESSURE:
                 case _state_WAITING_FOR_EXTERIOR_DOORS:
-                    status = "Pressurising";
-                    break;
+                    return "Pressurising";
+
                 case _state_WAITING_FOR_VACUUM:
                 case _state_WAITING_FOR_INTERIOR_DOORS:
-                    status = "Depressurising";
-                    break;
-                case _state_LOCKED:
-                    status = "Locked";
-                    break;
-                default:
-                    status = "Idle";
-                    break;
-            }
+                    return "Depressurising";
 
-            string message = "           AIRLOCK STATUS: " + status + "\n-------------------------------------------------------------\n ";
+                case _state_LOCKED:
+                    return "Locked";
+
+                case _state_NONE:
+                    return "Initialising";
+
+                case _state_READY:
+                    return "Ready";
+
+                default:
+                    return "Offline";
+            }
+        }
+
+        string GetDebugHR()
+        {
+            return "\n-------------------------------------------------------------\n ";
+        }
+
+        void RenderDebug()
+        {
+            string message = "           AIRLOCK STATUS: " + GetAirlockStatus() + GetDebugHR();
             message += String.Join("\n ", logs);
             for (int i = 0; i < (13 - logs.Count); i++)
             {
                 message += "\n";
             }
-            message += "\n------------------------------------------------------------\n";
+            message += GetDebugHR();
             message += " State: " + currentState.ToString();
             message += "      Oxygen: " + GetOxygenLevel().ToString() + "%";
             message += "      Tick: " + currentTick.ToString();
 
-            List<IMyTextPanel> panels = GetTextPanels(AIRLOCK_PREFIX + " Debug");
+            List<IMyTextPanel> panels = GetDebugPanels();
             for (int i = 0; i < panels.Count; i++)
             {
                 panels[i].WritePublicText(message, false);
