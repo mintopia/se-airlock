@@ -17,7 +17,6 @@ namespace Airlock
         IMyGridTerminalSystem GridTerminalSystem = null;
 #endregion
 #region CodeEditor
-
         const string AIRLOCK_PREFIX = "Station Airlock";
 
         const int VENT_TIMEOUT = 5;
@@ -224,12 +223,7 @@ namespace Airlock
 
         IMyDoor GetValve()
         {
-            var valve = GridTerminalSystem.GetBlockWithName(AIRLOCK_PREFIX + " Valve") as IMyDoor;
-            if (valve == null)
-            {
-                throw new Exception("Unable to find release valve");
-            }
-            return valve;
+            return GridTerminalSystem.GetBlockWithName(AIRLOCK_PREFIX + " Valve") as IMyDoor;
         }
 
         IMyTimerBlock GetTimer()
@@ -382,18 +376,31 @@ namespace Airlock
         void OpenValve()
         {
             IMyDoor valve = GetValve();
+            if (valve == null)
+            {
+                return;
+            }
             valve.GetActionWithName("Open_On").Apply(valve);
         }
 
         void CloseValve()
         {
             IMyDoor valve = GetValve();
+            if (valve == null)
+            {
+                return;
+            }
             valve.GetActionWithName("Open_Off").Apply(valve);
         }
 
         bool IsValveOpen()
         {
             IMyDoor valve = GetValve();
+            if (valve == null)
+            {
+                // It doesn't exist, so it can't be open
+                return false;
+            }
             return valve.Open;
         }
 
