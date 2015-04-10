@@ -13,6 +13,9 @@ namespace AirlockSystem
         static void Main(string[] args)
         {
         }
+
+        IMyGridTerminalSystem GridTerminalSystem = null;
+
 #endregion
 #region CodeEditor
         // This is the prefix for all the blocks and groups for the airlock
@@ -48,16 +51,27 @@ namespace AirlockSystem
         const string _TIMER = AIRLOCK_PREFIX + " Timer";
         const string _DEBUG = AIRLOCK_PREFIX + " Debug";
 
-        Airlock airlock = new Airlock();
+        Airlock airlock;
 
         void Main()
         {
-            airlock.execute();
+            BlockHelper blockHelper = new BlockHelper(GridTerminalSystem);
+            if (airlock == null)
+            {
+                airlock = new Airlock(blockHelper);
+            }
+            airlock.execute(blockHelper);
         }
 
         protected class BlockHelper
         {
-            static public void ApplyAction(IMyTerminalBlock block, string actionName)
+            IMyGridTerminalSystem GridTerminalSystem;
+
+            public BlockHelper(IMyGridTerminalSystem GridTerminalSystem) {
+                this.GridTerminalSystem = GridTerminalSystem;
+            }
+
+            public void ApplyAction(IMyTerminalBlock block, string actionName)
             {
                 ITerminalAction action = block.GetActionWithName(actionName);
                 if (action == null)
@@ -67,37 +81,33 @@ namespace AirlockSystem
                 action.Apply(block);
             }
 
-            static public void ApplyAction<T>(IList<T> blocks, string actionName)
+            public void ApplyAction<T>(IList<T> blocks, string actionName)
             {
                 for (int i = 0; i < blocks.Count; i++)
                 {
-                    BlockHelper.ApplyAction(blocks[i] as IMyTerminalBlock, actionName);
+                    this.ApplyAction(blocks[i] as IMyTerminalBlock, actionName);
                 }
             }
 
-            static public IList<T> GetGroup<T>(string groupName)
+            public IList<T> GetGroup<T>(string groupName)
             {
-                IMyGridTerminalSystem GridTerminalSystem = null;
-
-                for (int i = 0; i < GridTerminalSystem.BlockGroups.Count; i++)
+                for (int i = 0; i < this.GridTerminalSystem.BlockGroups.Count; i++)
                 {
-                    if (GridTerminalSystem.BlockGroups[i].Name == groupName)
+                    if (this.GridTerminalSystem.BlockGroups[i].Name == groupName)
                     {
-                        return GridTerminalSystem.BlockGroups[i].Blocks.OfType<T>().ToList();
+                        return this.GridTerminalSystem.BlockGroups[i].Blocks.OfType<T>().ToList();
                     }
                 }
                 return new List<T>();
             }
 
-            static public IMyTerminalBlock GetBlockWithName(string blockName) {
-                IMyGridTerminalSystem GridTerminalSystem = null;
-                return GridTerminalSystem.GetBlockWithName(blockName);
+            public IMyTerminalBlock GetBlockWithName(string blockName) {
+                return this.GridTerminalSystem.GetBlockWithName(blockName);
             }
 
-            static public IList<T> SearchBlocksOfName<T>(string blockName) {
-                IMyGridTerminalSystem GridTerminalSystem = null;
+            public IList<T> SearchBlocksOfName<T>(string blockName) {
                 List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
-                GridTerminalSystem.SearchBlocksOfName(blockName, blocks);
+                this.GridTerminalSystem.SearchBlocksOfName(blockName, blocks);
                 return blocks.OfType<T>().ToList();
             }
         }
@@ -105,10 +115,12 @@ namespace AirlockSystem
         protected class Vent
         {
             private IMyAirVent vent;
+            private BlockHelper blockHelper;
 
-            public Vent(IMyAirVent vent)
+            public Vent(BlockHelper blockHelper, IMyAirVent vent)
             {
                 this.vent = vent;
+                this.blockHelper = blockHelper;
             }
 
             public int GetOxygenLevel()
@@ -118,22 +130,24 @@ namespace AirlockSystem
 
             public void EnableOxygen()
             {
-                BlockHelper.ApplyAction(this.vent, "Pressurize");
+                this.blockHelper.ApplyAction(this.vent, "Pressurize");
             }
 
             public void DisableOxygen()
             {
-                BlockHelper.ApplyAction(this.vent, "Pressurize");
+                this.blockHelper.ApplyAction(this.vent, "Pressurize");
             }
         }
 
         protected class Door
         {
             private IMyDoor door;
+            private BlockHelper blockHelper;
 
-            public Door(IMyDoor door)
+            public Door(BlockHelper blockHelper, IMyDoor door)
             {
                 this.door = door;
+                this.blockHelper = blockHelper;
             }
 
             public bool IsClosed()
@@ -143,34 +157,37 @@ namespace AirlockSystem
 
             public void Open()
             {
-                BlockHelper.ApplyAction(this.door, "Open_On");
+                blockHelper.ApplyAction(this.door, "Open_On");
             }
 
             public void Close()
             {
-                BlockHelper.ApplyAction(this.door, "Open_Off");
+                blockHelper.ApplyAction(this.door, "Open_Off");
             }
 
             public void Disable()
             {
-                BlockHelper.ApplyAction(this.door, "OnOff_Off");
+                this.blockHelper.ApplyAction(this.door, "OnOff_Off");
             }
 
             public void Enable()
             {
-                BlockHelper.ApplyAction(this.door, "OnOff_On");
+                this.blockHelper.ApplyAction(this.door, "OnOff_On");
             }
         }
 
         protected class DoorGroup
         {
             private IList<Door> doors = new List<Door>();
+            private BlockHelper blockHelper;
 
-            public DoorGroup(string name)
+            public DoorGroup(BlockHelper blockHelper, string name)
             {
-                IList<IMyDoor> blocks = BlockHelper.GetGroup<IMyDoor>(name);
+                this.blockHelper = blockHelper;
+
+                IList<IMyDoor> blocks = blockHelper.GetGroup<IMyDoor>(name);
                 for (int i = 0; i < blocks.Count; i++) {
-                    this.doors.Add(new Door(blocks[i]));
+                    this.doors.Add(new Door(this.blockHelper, blocks[i]));
                 }
             }
 
@@ -222,10 +239,12 @@ namespace AirlockSystem
         protected class Sensor
         {
             private IMySensorBlock sensor;
+            private BlockHelper blockHelper;
 
-            public Sensor(IMySensorBlock sensor)
+            public Sensor(BlockHelper blockHelper, IMySensorBlock sensor)
             {
                 this.sensor = sensor;
+                this.blockHelper = blockHelper;
             }
 
             public bool IsActive() {
@@ -234,25 +253,27 @@ namespace AirlockSystem
 
             public void Enable()
             {
-                BlockHelper.ApplyAction(this.sensor, "OnOff_On");
+                this.blockHelper.ApplyAction(this.sensor, "OnOff_On");
             }
 
             public void Disable()
             {
-                BlockHelper.ApplyAction(this.sensor, "OnOff_Off");
+                this.blockHelper.ApplyAction(this.sensor, "OnOff_Off");
             }
         }
 
         protected class SensorGroup
         {
             private IList<Sensor> sensors = new List<Sensor>();
+            private BlockHelper blockHelper;
 
-            public SensorGroup(string name)
+            public SensorGroup(BlockHelper blockHelper, string name)
             {
-                IList<IMySensorBlock> blocks = BlockHelper.GetGroup<IMySensorBlock>(name);
+                this.blockHelper = blockHelper;
+                IList<IMySensorBlock> blocks = this.blockHelper.GetGroup<IMySensorBlock>(name);
                 for (int i = 0; i < blocks.Count; i++)
                 {
-                    this.sensors.Add(new Sensor(blocks[i]));
+                    this.sensors.Add(new Sensor(this.blockHelper, blocks[i]));
                 }
             }
 
@@ -288,16 +309,20 @@ namespace AirlockSystem
         protected class VentGroup {
             private IList<Vent> vents = new List<Vent>();
             private Door valve;
+            private BlockHelper blockHelper;
 
-            public VentGroup() {
-                IList<IMyAirVent> blocks = BlockHelper.GetGroup<IMyAirVent>(_VENTS);
+            public VentGroup(BlockHelper blockHelper)
+            {
+                this.blockHelper = blockHelper;
+
+                IList<IMyAirVent> blocks = this.blockHelper.GetGroup<IMyAirVent>(_VENTS);
                 for (int i = 0; i < blocks.Count; i++) {
-                    this.vents.Add(new Vent(blocks[i]));
+                    this.vents.Add(new Vent(this.blockHelper, blocks[i]));
                 }
                 
-                IMyDoor door = BlockHelper.GetBlockWithName(_VALVE) as IMyDoor;
+                IMyDoor door = this.blockHelper.GetBlockWithName(_VALVE) as IMyDoor;
                 if (door != null) {
-                    this.valve = new Door(door);
+                    this.valve = new Door(this.blockHelper, door);
                 }
             }
 
@@ -338,10 +363,12 @@ namespace AirlockSystem
         {
             private IList<string> logs = new List<string>();
             private Airlock airlock;
+            private BlockHelper blockHelper;
 
-            public DebugOutput(Airlock airlock)
+            public DebugOutput(BlockHelper blockHelper, Airlock airlock)
             {
                 this.airlock = airlock;
+                this.blockHelper = blockHelper;
             }
 
             public void AddLog(string message) {
@@ -375,7 +402,7 @@ namespace AirlockSystem
                 message += "      Oxygen: " + this.airlock.GetOxygenLevel().ToString() + "%";
                 message += "      Tick: " + this.airlock.Tick.ToString();
 
-                IList<IMyTextPanel> panels = BlockHelper.SearchBlocksOfName<IMyTextPanel>(_DEBUG);
+                IList<IMyTextPanel> panels = this.blockHelper.SearchBlocksOfName<IMyTextPanel>(_DEBUG);
                 for (int i = 0; i < panels.Count; i++)
                 {
                     panels[i].WritePublicText(message, false);
@@ -391,32 +418,34 @@ namespace AirlockSystem
 
         protected class Timer
         {
-            private IMyTimerBlock timer = BlockHelper.GetBlockWithName(_TIMER) as IMyTimerBlock;
+            private IMyTimerBlock timer;
+            private BlockHelper blockHelper;
+
+            public Timer(BlockHelper blockHelper)
+            {
+                this.blockHelper = blockHelper;
+                this.timer = this.blockHelper.GetBlockWithName(_TIMER) as IMyTimerBlock;
+                if (this.timer == null)
+                {
+                    throw new Exception("Unable to find a timer block called " + _TIMER);
+                }
+            }
 
             public void Start()
             {
-                this.Assert();
-                BlockHelper.ApplyAction(this.timer, "OnOff_On");
-                BlockHelper.ApplyAction(this.timer, "Start");
+                this.blockHelper.ApplyAction(this.timer, "OnOff_On");
+                this.blockHelper.ApplyAction(this.timer, "Start");
             }
 
             public void Stop()
             {
-                this.Assert();
-                BlockHelper.ApplyAction(this.timer, "OnOff_Off");
-            }
-
-            private void Assert()
-            {
-                if (this.timer == null)
-                {
-                    throw new Exception("Unable to find timer block called " + _TIMER);
-                }
+                this.blockHelper.ApplyAction(this.timer, "OnOff_Off");
             }
         }
 
         protected class Airlock
         {
+            private BlockHelper blockHelper;
             private int state = _state_NONE;
             private int tick = 0;
             private DebugOutput debug;
@@ -437,31 +466,31 @@ namespace AirlockSystem
 
             private SensorGroup chamberSensors {
                 get {
-                    return new SensorGroup(_sensor_CHAMBER);
+                    return new SensorGroup(this.blockHelper, _sensor_CHAMBER);
                 }
             }
 
             private SensorGroup interiorSensors {
                 get {
-                    return new SensorGroup(_sensor_INTERIOR);
+                    return new SensorGroup(this.blockHelper, _sensor_INTERIOR);
                 }
             }
 
             private SensorGroup exteriorSensors {
                 get {
-                    return new SensorGroup(_sensor_EXTERIOR);
+                    return new SensorGroup(this.blockHelper, _sensor_EXTERIOR);
                 }
             }
 
             private DoorGroup interiorDoors {
                 get {
-                    return new DoorGroup(_door_INTERIOR);
+                    return new DoorGroup(this.blockHelper, _door_INTERIOR);
                 }
             }
 
             private DoorGroup exteriorDoors {
                 get {
-                    return new DoorGroup(_door_EXTERIOR);
+                    return new DoorGroup(this.blockHelper, _door_EXTERIOR);
                 }
             }
 
@@ -469,7 +498,7 @@ namespace AirlockSystem
             {
                 get
                 {
-                    return new VentGroup();
+                    return new VentGroup(this.blockHelper);
                 }
             }
 
@@ -477,12 +506,13 @@ namespace AirlockSystem
             {
                 get
                 {
-                    return new Timer();
+                    return new Timer(this.blockHelper);
                 }
             }
 
-            public void execute()
+            public void execute(BlockHelper blockHelper)
             {
+                this.blockHelper = blockHelper;
                 this.tick++;
 
                 switch (this.State)
@@ -537,15 +567,16 @@ namespace AirlockSystem
                 }
             }
 
-            public Airlock()
+            public Airlock(BlockHelper blockHelper)
             {
+                this.blockHelper = blockHelper;
                 this.Initialise();
             }
 
             private void Initialise()
             {
                 this.state = _state_READY;
-                this.debug = new DebugOutput(this);
+                this.debug = new DebugOutput(this.blockHelper, this);
             }
 
             private void StartAirlock()
