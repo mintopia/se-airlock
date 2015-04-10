@@ -373,7 +373,7 @@ namespace AirlockSystem
                 message += this.Line();
                 message += " State: " + this.airlock.State.ToString();
                 message += "      Oxygen: " + this.airlock.GetOxygenLevel().ToString() + "%";
-                message += "      Tick: " + airlock.Tick.ToString();
+                message += "      Tick: " + this.airlock.Tick.ToString();
 
                 IList<IMyTextPanel> panels = BlockHelper.SearchBlocksOfName<IMyTextPanel>(_DEBUG);
                 for (int i = 0; i < panels.Count; i++)
