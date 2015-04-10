@@ -2,11 +2,8 @@
 
 This is a in-game programming block script for controlling and managing an Airlock. The main features are:
 
- * Multiple Interior and Exterior Doors
  * Fully automatic operation
- * Multiple Vents
  * Safety Valve to prevent explosive decompression
- * Activation of status lights, sound blocks, etc.
  
 ## Setup
 
@@ -34,59 +31,41 @@ This should be set to activate every second. The first action should be 'Run' on
 
 This is an airtight door, any type. It must be separated from the main airlock chamber by a vented window. The other side of this door must be in the zero pressure area. If the airlock is unable to de-pressurise within the specified time limit (default 5s), this door is opened before the exterior doors. This prevents explosive decompression, your character will not experience any of the normal effects.
 
-### Interior Doors Group
+### Interior Door
 
-**Name** ```<AIRLOCK_PREFIX> Interior Doors```
+**Name** ```<AIRLOCK_PREFIX> Interior Door```
 
-All the interior doors leading to the pressurised area should be a member of this group. It's reccomended that you also rename the doors.
+This is the door leading from the airlock chamber to the pressurised area.
 
-### Exterior Doors Group
+### Exterior Door
 
 **Name** ```<AIRLOCK_PREFIX> Exterior Doors```
 
-All the exterior doors leading to the unpressurised area should be a member of this group. You should also give the doors meaningful names.
+This is the door leading from the airlock chamber to the unpressurised area.
 
-### Air Vents Group
+### Air Vent
 
-**Name** ```<AIRLOCK_PREFIX> Vents```
+**Name** ```<AIRLOCK_PREFIX> Ven```
 
-These are the vents inside the airlock chamber. Name the individual vents.
+This is the vent inside the airlock chamber.
 
-### Chamber Sensors Group
+### Chamber Sensor
 
-**Name** ```<AIRLOCK_PREFIX> Chamber Sensors```
+**Name** ```<AIRLOCK_PREFIX> Chamber Sensor```
 
-This group should contain all sensor blocks inside the chamber. You should adjust the range on them so they don't overlap and they only cover the airlock chamber. The action on them should be to 'Run' the programmable block.
+This is the sensor within the chamber. You should adjust the range on it so that it only covers the airlock chamber. The action on it should be to 'Run' the programmable block.
 
-### Interior Sensors Group
+### Interior Sensor
 
-**Name** ```<AIRLOCK_PREFIX> Interior Sensors```
+**Name** ```<AIRLOCK_PREFIX> Interior Sensor```
 
-The sensors in this group should be placed at the approaches to the interior airlock doors inside the station/ship. The purpose is to activate the airlock if it is not pressurised. The range on each sensor should not overlap and should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
+This sensor should be placed at the approach to the interior airlock door inside the station/ship. The purpose is to activate the airlock if it is not pressurised. The range on the sensor should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
 
-### Exterior Sensors Group
+### Exterior Sensor
 
 **Name** ```<AIRLOCK_PREFIX> Exterior Sensors```
 
-The sensors in this group should be placed at the approaches to the exterior airlock doors outside of the station. The range on each sensor should not overlap and should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
-
-### Pressurised Blocks Group
-
-**Name** ```<AIRLOCK_PREFIX> Pressurised Blocks```
-
-These are blocks that you want to be turned on when the airlock is idle and is pressurised. These could be status lights inside the station. They will be turned on or off at the start and end of each airlock sequence.
-
-### Unpressurised Blocks Group
-
-**Name** ```<AIRLOCK_PREFIX> Unpressurised Blocks```
-
-These are blocks that you want to be turned on when the airlock is idle and is pressurised. These could be status lights outside the station.
-
-### Active Blocks Group
-
-**Name** ```<AIRLOCK_PREFIX> Active Blocks```
-
-These are blocks that you want to be turned on when the airlock is active and running a sequence. These could be lights inside the airlock.
+This sensor should be placed at the approach to the exterior airlock door outside of the station. The range on the sensor should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
 
 ### Debug TextPanel
 
