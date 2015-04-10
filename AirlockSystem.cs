@@ -136,7 +136,7 @@ namespace AirlockSystem
                 this.door = door;
             }
 
-            public bool isClosed()
+            public bool IsClosed()
             {
                 return !this.door.Open;
             }
@@ -174,11 +174,11 @@ namespace AirlockSystem
                 }
             }
 
-            public bool AreClosed()
+            public bool IsClosed()
             {
                 for (int i = 0; i < doors.Count; i++)
                 {
-                    if (!this.doors[i].isClosed())
+                    if (!this.doors[i].IsClosed())
                     {
                         return false;
                     }
@@ -256,7 +256,7 @@ namespace AirlockSystem
                 }
             }
 
-            public bool AreActive()
+            public bool IsActive()
             {
                 for (int i = 0; i < this.sensors.Count; i++)
                 {
@@ -522,14 +522,14 @@ namespace AirlockSystem
                         break;
 
                     case _state_WAITING_FOR_INTERIOR_DOORS:
-                        if (this.interiorDoors.AreClosed() || (tick > DOOR_TIMEOUT))
+                        if (this.interiorDoors.IsClosed() || (tick > DOOR_TIMEOUT))
                         {
                             this.ContinueDepressurisation();
                         }
                         break;
 
                     case _state_WAITING_FOR_EXTERIOR_DOORS:
-                        if (this.exteriorDoors.AreClosed() || (tick > DOOR_TIMEOUT))
+                        if (this.exteriorDoors.IsClosed() || (tick > DOOR_TIMEOUT))
                         {
                             this.ContinuePressurisation();
                         }
@@ -553,9 +553,9 @@ namespace AirlockSystem
                 this.state = _state_LOCKED;
 
                 // Detect what's happening from what sensor  
-                if (this.chamberSensors.AreActive())
+                if (this.chamberSensors.IsActive())
                 {
-                    if (this.interiorDoors.AreClosed())
+                    if (this.interiorDoors.IsClosed())
                     {
                         // Interior doors are closed, they probably walked from outside  
                         this.PressuriseAirlock();
@@ -568,19 +568,19 @@ namespace AirlockSystem
                     return;
                 }
 
-                if (this.interiorSensors.AreActive())
+                if (this.interiorSensors.IsActive())
                 {
                     // They walked up to the interior sensor  
-                    if (this.interiorDoors.AreClosed())
+                    if (this.interiorDoors.IsClosed())
                     {
                         this.PressuriseAirlock();
                         return;
                     }
                 }
 
-                if (this.exteriorSensors.AreActive())
+                if (this.exteriorSensors.IsActive())
                 {
-                    if (this.exteriorDoors.AreClosed())
+                    if (this.exteriorDoors.IsClosed())
                     {
                         this.DepressuriseAirlock();
                         return;
