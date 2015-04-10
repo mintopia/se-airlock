@@ -4,6 +4,8 @@ This is a in-game programming block script for controlling and managing an Airlo
 
  * Fully automatic operation
  * Safety Valve to prevent explosive decompression
+ * Multiple Interior and Exterior Doors
+ * Multiple Vents
  
 ## Setup
 
@@ -33,41 +35,41 @@ This is an airtight door, any type. It must be separated from the main airlock c
 
 The safety valve is optional. If your airlock doesn't need this, you don't need to add it.
 
-### Interior Door
+### Interior Doors Group
 
-**Name** ```<AIRLOCK_PREFIX> Interior Door```
+**Name** ```<AIRLOCK_PREFIX> Interior Doors```
 
-This is the door leading from the airlock chamber to the pressurised area.
+All the interior doors leading to the pressurised area should be a member of this group. It's reccomended that you also rename the doors.
 
-### Exterior Door
+### Exterior Doors Group
 
 **Name** ```<AIRLOCK_PREFIX> Exterior Doors```
 
-This is the door leading from the airlock chamber to the unpressurised area.
+All the exterior doors leading to the unpressurised area should be a member of this group. You should also give the doors meaningful names.
 
-### Air Vent
+### Air Vents Group
 
-**Name** ```<AIRLOCK_PREFIX> Ven```
+**Name** ```<AIRLOCK_PREFIX> Vents```
 
-This is the vent inside the airlock chamber.
+These are the vents inside the airlock chamber. Name the individual vents.
 
-### Chamber Sensor
+### Chamber Sensors Group
 
-**Name** ```<AIRLOCK_PREFIX> Chamber Sensor```
+**Name** ```<AIRLOCK_PREFIX> Chamber Sensors```
 
-This is the sensor within the chamber. You should adjust the range on it so that it only covers the airlock chamber. The action on it should be to 'Run' the programmable block.
+This group should contain all sensor blocks inside the chamber. You should adjust the range on them so they don't overlap and they only cover the airlock chamber. The action on them should be to 'Run' the programmable block.
 
-### Interior Sensor
+### Interior Sensors Group
 
-**Name** ```<AIRLOCK_PREFIX> Interior Sensor```
+**Name** ```<AIRLOCK_PREFIX> Interior Sensors```
 
-This sensor should be placed at the approach to the interior airlock door inside the station/ship. The purpose is to activate the airlock if it is not pressurised. The range on the sensor should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
+The sensors in this group should be placed at the approaches to the interior airlock doors inside the station/ship. The purpose is to activate the airlock if it is not pressurised. The range on each sensor should not overlap and should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
 
-### Exterior Sensor
+### Exterior Sensors Group
 
 **Name** ```<AIRLOCK_PREFIX> Exterior Sensors```
 
-This sensor should be placed at the approach to the exterior airlock door outside of the station. The range on the sensor should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
+The sensors in this group should be placed at the approaches to the exterior airlock doors outside of the station. The range on each sensor should not overlap and should not cover any of the airlock chamber. The action should be to 'Run' the programmable block.
 
 ### Debug TextPanel
 
