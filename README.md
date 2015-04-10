@@ -4,6 +4,8 @@ This is a in-game programming block script for controlling and managing an Airlo
 
  * Multiple Interior and Exterior Doors
  * Fully automatic operation
+ * Multiple Vents
+ * Safety Valve to prevent explosive decompression
  * Activation of status lights, sound blocks, etc.
  
 ## Setup
@@ -25,6 +27,12 @@ The contents of the script should be entered into this block. It controls the ai
 **Initial State** Turned Off
 
 This should be set to activate every second. The first action should be 'Run' on the programmable block. The second action should be the Timer itself with the 'Start' action. It should be turned off.
+
+### Safety Valve
+
+**Name** ```<AIRLOCK_PREFIX> Valve```
+
+This is an airtight door, any type. It must be separated from the main airlock chamber by a vented window. The other side of this door must be in the zero pressure area. If the airlock is unable to de-pressurise within the specified time limit (default 5s), this door is opened before the exterior doors. This prevents explosive decompression, your character will not experience any of the normal effects.
 
 ### Interior Doors Group
 
