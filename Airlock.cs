@@ -1,4 +1,5 @@
-﻿using System;
+﻿#region header
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,12 +15,10 @@ namespace Airlock
         }
         
         IMyGridTerminalSystem GridTerminalSystem = null;
-
-        #region CodeEditor
+#endregion
+#region CodeEditor
 
         const string AIRLOCK_PREFIX = "Station Airlock";
-
-        const bool EXPLOSIVE_DECOMPRESSION = false;
 
         const int VENT_TIMEOUT = 5;
         const int DOOR_TIMEOUT = 5;
@@ -54,15 +53,14 @@ namespace Airlock
                     break;
 
                 case _state_WAITING_FOR_VACUUM:
-                    // Waiting for vacuum  
-                    if (!EXPLOSIVE_DECOMPRESSION)
-                    {
-                        if (IsPressurised() && (GetTicks() < VENT_TIMEOUT))
-                        {
-                            return;
-                        }
+                    // Waiting for vacuum 
+                    if (!IsPressurised()) {
+                        OpenExterior();
+                        return;
+                    } else if (GetTicks() > VENT_TIMEOUT) {
+                        OpenValve();
+                        return;
                     }
-                    OpenExterior();
                     break;
 
                 case _state_WAITING_FOR_EXTERIOR_DOORS:
@@ -195,31 +193,21 @@ namespace Airlock
 
         void EnableOxygen()
         {
-            DebugOutput("Enabling vent");
-            IMyAirVent vent = GetVent();
-            vent.GetActionWithName("OnOff_On").Apply(vent);
-            if (!EXPLOSIVE_DECOMPRESSION)
+            if (IsValveOpen())
             {
-                // We want to pressurize the room, explosive decompression should already be in this state  
-                vent.GetActionWithName("Depressurize").Apply(vent);
+                DebugOutput("Closing safety valve");
+                CloseValve();
             }
+            DebugOutput("Enabling vent");
+            IMyAirVent vent = GetVent(); 
+            vent.GetActionWithName("Depressurize").Apply(vent);
         }
 
         void DisableOxygen()
         {
-            IMyAirVent vent = GetVent();
-            if (EXPLOSIVE_DECOMPRESSION)
-            {
-                // If explosive, let's just turn it off, we don't care about the O2  
-                DebugOutput("Turning off vent");
-                vent.GetActionWithName("OnOff_Off").Apply(vent);
-            }
-            else
-            {
-                // We want to depressurize the room  
-                DebugOutput("Depressurizing vent");
-                vent.GetActionWithName("Depressurize").Apply(vent);
-            }
+            IMyAirVent vent = GetVent();  
+            DebugOutput("Depressurizing vent");
+            vent.GetActionWithName("Depressurize").Apply(vent);
         }
 
         // Library Functions
@@ -232,6 +220,16 @@ namespace Airlock
                 throw new Exception("Unable to find air vent");
             }
             return vent;
+        }
+
+        IMyDoor GetValve()
+        {
+            var valve = GridTerminalSystem.GetBlockWithName(AIRLOCK_PREFIX + " Valve") as IMyDoor;
+            if (valve == null)
+            {
+                throw new Exception("Unable to find release valve");
+            }
+            return valve;
         }
 
         IMyTimerBlock GetTimer()
@@ -381,6 +379,24 @@ namespace Airlock
             CloseDoors(AIRLOCK_PREFIX + " Exterior Door");
         }
 
+        void OpenValve()
+        {
+            IMyDoor valve = GetValve();
+            valve.GetActionWithName("Open_On").Apply(valve);
+        }
+
+        void CloseValve()
+        {
+            IMyDoor valve = GetValve();
+            valve.GetActionWithName("Open_Off").Apply(valve);
+        }
+
+        bool IsValveOpen()
+        {
+            IMyDoor valve = GetValve();
+            return valve.Open;
+        }
+
         bool AreDoorsClosed(string name)
         {
             List<IMyDoor> doors = GetDoors(name);
@@ -512,6 +528,8 @@ namespace Airlock
                 panels[i].ShowPublicTextOnScreen();
             }
         }
-        #endregion
+#endregion
+#region footer
     }
 }
+#endregion
