@@ -19,11 +19,12 @@ namespace AirlockSystem
 #endregion
 #region CodeEditor
         // This is the prefix for all the blocks and groups for the airlock
-        const string AIRLOCK_PREFIX = "Station Airlock";
+        const string AIRLOCK_PREFIX = "Lab Airlock";
 
         // This is how long in ticks (normally seconds) to wait for vents and doors to open/close/depressurize
         const int VENT_TIMEOUT = 5;
         const int DOOR_TIMEOUT = 5;
+        const int DOOR_DELAY = 1;
 
         /* Nothing from here on needs editing */
 
@@ -31,19 +32,27 @@ namespace AirlockSystem
         const int _state_NONE = 0;
         const int _state_READY = 1;
         const int _state_LOCKED = 2;
-        const int _state_WAITING_FOR_PRESSURE = 3;
-        const int _state_WAITING_FOR_VACUUM = 4;
-        const int _state_WAITING_FOR_EXTERIOR_DOORS = 5;
-        const int _state_WAITING_FOR_INTERIOR_DOORS = 6;
+
+        const int _state_WAITING_FOR_EXTERIOR_DOORS = 10;
+        const int _state_WAITING_FOR_EXTERIOR_DOORLOCK = 11;
+        const int _state_WAITING_FOR_PRESSURE = 12;
+        const int _state_COMPLETE_WAITING_FOR_INTERIOR_DOORS = 13;
+        const int _state_WAITING_FOR_INTERIOR_DOOROPEN = 14;
+
+        const int _state_WAITING_FOR_INTERIOR_DOORS = 20;
+        const int _state_WAITING_FOR_INTERIOR_DOORLOCK = 21;
+        const int _state_WAITING_FOR_VACUUM = 22;
+        const int _state_COMPLETE_WAITING_FOR_EXTERIOR_DOORS = 23;
+        const int _state_WAITING_FOR_EXTERIOR_DOOROPEN = 24;
 
         // The names of our sensor groups
-        const string _sensor_INTERIOR = AIRLOCK_PREFIX + " Internal Sensors";
-        const string _sensor_EXTERIOR = AIRLOCK_PREFIX + " External Sensors";
+        const string _sensor_INTERIOR = AIRLOCK_PREFIX + " Interior Sensors";
+        const string _sensor_EXTERIOR = AIRLOCK_PREFIX + " Exterior Sensors";
         const string _sensor_CHAMBER = AIRLOCK_PREFIX + " Chamber Sensors";
 
         // The names of our door groups
-        const string _door_INTERIOR = AIRLOCK_PREFIX + " Internal Doors";
-        const string _door_EXTERIOR = AIRLOCK_PREFIX + " External Doors";
+        const string _door_INTERIOR = AIRLOCK_PREFIX + " Interior Doors";
+        const string _door_EXTERIOR = AIRLOCK_PREFIX + " Exterior Doors";
 
         // One-off blocks that are needed
         const string _VENTS = AIRLOCK_PREFIX + " Vents";
@@ -51,19 +60,15 @@ namespace AirlockSystem
         const string _TIMER = AIRLOCK_PREFIX + " Timer";
         const string _DEBUG = AIRLOCK_PREFIX + " Debug";
 
-        Airlock airlock;
+        Airlock airlock = new Airlock();
 
         void Main()
         {
             BlockHelper blockHelper = new BlockHelper(GridTerminalSystem);
-            if (airlock == null)
-            {
-                airlock = new Airlock(blockHelper);
-            }
             airlock.execute(blockHelper);
         }
 
-        protected class BlockHelper
+        public class BlockHelper
         {
             IMyGridTerminalSystem GridTerminalSystem;
 
@@ -91,14 +96,24 @@ namespace AirlockSystem
 
             public IList<T> GetGroup<T>(string groupName)
             {
+                List<T> groupBlocks = new List<T>();
                 for (int i = 0; i < this.GridTerminalSystem.BlockGroups.Count; i++)
                 {
                     if (this.GridTerminalSystem.BlockGroups[i].Name == groupName)
                     {
-                        return this.GridTerminalSystem.BlockGroups[i].Blocks.OfType<T>().ToList();
+
+                        for (int j = 0; j < this.GridTerminalSystem.BlockGroups[i].Blocks.Count; j++)
+                        {
+                            var block = this.GridTerminalSystem.BlockGroups[i].Blocks[j];
+                            if (block is T) {
+                                groupBlocks.Add((T)block);
+
+                            }
+                        }
+                        return groupBlocks;
                     }
                 }
-                return new List<T>();
+                return groupBlocks;
             }
 
             public IMyTerminalBlock GetBlockWithName(string blockName) {
@@ -108,11 +123,19 @@ namespace AirlockSystem
             public IList<T> SearchBlocksOfName<T>(string blockName) {
                 List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
                 this.GridTerminalSystem.SearchBlocksOfName(blockName, blocks);
-                return blocks.OfType<T>().ToList();
+                List<T> result = new List<T>();
+                for (int i = 0; i < blocks.Count; i++)
+                {
+                    if (blocks[i] is T)
+                    {
+                        result.Add((T) blocks[i]);
+                    }
+                }
+                return result;
             }
         }
 
-        protected class Vent
+        public class Vent
         {
             private IMyAirVent vent;
             private BlockHelper blockHelper;
@@ -123,23 +146,23 @@ namespace AirlockSystem
                 this.blockHelper = blockHelper;
             }
 
-            public int GetOxygenLevel()
+            public int GetVentOxygenLevel()
             {
                 return (int) Math.Round((Decimal)(this.vent.GetOxygenLevel() * 100), 0);
             }
 
-            public void EnableOxygen()
+            public void EnableVentOxygen()
             {
-                this.blockHelper.ApplyAction(this.vent, "Pressurize");
+                this.blockHelper.ApplyAction(this.vent, "Depressurize");
             }
 
-            public void DisableOxygen()
+            public void DisableVentOxygen()
             {
-                this.blockHelper.ApplyAction(this.vent, "Pressurize");
+                this.blockHelper.ApplyAction(this.vent, "Depressurize");
             }
         }
 
-        protected class Door
+        public class Door
         {
             private IMyDoor door;
             private BlockHelper blockHelper;
@@ -150,35 +173,37 @@ namespace AirlockSystem
                 this.blockHelper = blockHelper;
             }
 
-            public bool IsClosed()
+            public bool IsDoorClosed()
             {
                 return !this.door.Open;
             }
 
-            public void Open()
+            public void OpenDoor()
             {
+                this.EnableDoor();
                 blockHelper.ApplyAction(this.door, "Open_On");
             }
 
-            public void Close()
+            public void CloseDoor()
             {
+                this.EnableDoor();
                 blockHelper.ApplyAction(this.door, "Open_Off");
             }
 
-            public void Disable()
+            public void DisableDoor()
             {
                 this.blockHelper.ApplyAction(this.door, "OnOff_Off");
             }
 
-            public void Enable()
+            public void EnableDoor()
             {
                 this.blockHelper.ApplyAction(this.door, "OnOff_On");
             }
         }
 
-        protected class DoorGroup
+        public class DoorGroup
         {
-            private IList<Door> doors = new List<Door>();
+            private IList<DoorStruct> doors = new List<DoorStruct>();
             private BlockHelper blockHelper;
 
             public DoorGroup(BlockHelper blockHelper, string name)
@@ -187,15 +212,16 @@ namespace AirlockSystem
 
                 IList<IMyDoor> blocks = blockHelper.GetGroup<IMyDoor>(name);
                 for (int i = 0; i < blocks.Count; i++) {
-                    this.doors.Add(new Door(this.blockHelper, blocks[i]));
+                    Door door = new Door(this.blockHelper, blocks[i]);
+                    this.doors.Add(new DoorStruct(door));
                 }
             }
 
-            public bool IsClosed()
+            public bool AreDoorsClosed()
             {
                 for (int i = 0; i < doors.Count; i++)
                 {
-                    if (!this.doors[i].IsClosed())
+                    if (!this.doors[i].Door.IsDoorClosed())
                     {
                         return false;
                     }
@@ -203,40 +229,40 @@ namespace AirlockSystem
                 return true;
             }
 
-            public void Open()
+            public void OpenDoors()
             {
                 for (int i = 0; i < this.doors.Count; i++)
                 {
-                    this.doors[i].Open();
+                    this.doors[i].Door.OpenDoor();
                 }
             }
 
-            public void Close()
+            public void CloseDoors()
             {
                 for (int i = 0; i < this.doors.Count; i++)
                 {
-                    this.doors[i].Close();
+                    this.doors[i].Door.CloseDoor();
                 }
             }
 
-            public void Enable()
+            public void EnableDoors()
             {
                 for (int i = 0; i < this.doors.Count; i++)
                 {
-                    this.doors[i].Enable();
+                    this.doors[i].Door.EnableDoor();
                 }
             }
 
-            public void Disable()
+            public void DisableDoors()
             {
                 for (int i = 0; i < this.doors.Count; i++)
                 {
-                    this.doors[i].Disable();
+                    this.doors[i].Door.DisableDoor();
                 }
             }
         }
 
-        protected class Sensor
+        public class Sensor
         {
             private IMySensorBlock sensor;
             private BlockHelper blockHelper;
@@ -247,24 +273,24 @@ namespace AirlockSystem
                 this.blockHelper = blockHelper;
             }
 
-            public bool IsActive() {
+            public bool IsSensorActive() {
                 return this.sensor.IsActive;
             }
 
-            public void Enable()
+            public void EnableSensor()
             {
                 this.blockHelper.ApplyAction(this.sensor, "OnOff_On");
             }
 
-            public void Disable()
+            public void DisableSensor()
             {
                 this.blockHelper.ApplyAction(this.sensor, "OnOff_Off");
             }
         }
 
-        protected class SensorGroup
+        public class SensorGroup
         {
-            private IList<Sensor> sensors = new List<Sensor>();
+            private IList<SensorStruct> sensors = new List<SensorStruct>();
             private BlockHelper blockHelper;
 
             public SensorGroup(BlockHelper blockHelper, string name)
@@ -273,15 +299,16 @@ namespace AirlockSystem
                 IList<IMySensorBlock> blocks = this.blockHelper.GetGroup<IMySensorBlock>(name);
                 for (int i = 0; i < blocks.Count; i++)
                 {
-                    this.sensors.Add(new Sensor(this.blockHelper, blocks[i]));
+                    Sensor sensor = new Sensor(this.blockHelper, blocks[i]);
+                    this.sensors.Add(new SensorStruct(sensor));
                 }
             }
 
-            public bool IsActive()
+            public bool AreSensorsActive()
             {
                 for (int i = 0; i < this.sensors.Count; i++)
                 {
-                    if (this.sensors[i].IsActive())
+                    if (this.sensors[i].Sensor.IsSensorActive())
                     {
                         return true;
                     }
@@ -289,25 +316,26 @@ namespace AirlockSystem
                 return false;
             }
 
-            public void Enable()
+            public void EnableSensors()
             {
                 for (int i = 0; i < this.sensors.Count; i++)
                 {
-                    this.sensors[i].Enable();
+                    this.sensors[i].Sensor.EnableSensor();
                 }
             }
 
-            public void Disable()
+            public void DisableSensors()
             {
                 for (int i = 0; i < this.sensors.Count; i++)
                 {
-                    this.sensors[i].Disable();
+                    this.sensors[i].Sensor.DisableSensor();
                 }
             }
         }
 
-        protected class VentGroup {
-            private IList<Vent> vents = new List<Vent>();
+        public class VentGroup
+        {
+            private IList<VentStruct> vents = new List<VentStruct>();
             private Door valve;
             private BlockHelper blockHelper;
 
@@ -317,7 +345,8 @@ namespace AirlockSystem
 
                 IList<IMyAirVent> blocks = this.blockHelper.GetGroup<IMyAirVent>(_VENTS);
                 for (int i = 0; i < blocks.Count; i++) {
-                    this.vents.Add(new Vent(this.blockHelper, blocks[i]));
+                    Vent vent = new Vent(this.blockHelper, blocks[i]);
+                    this.vents.Add(new VentStruct(vent));
                 }
                 
                 IMyDoor door = this.blockHelper.GetBlockWithName(_VALVE) as IMyDoor;
@@ -331,37 +360,77 @@ namespace AirlockSystem
                     return 0;
                 }
 
-                return this.vents[0].GetOxygenLevel();
+                return this.vents[0].Vent.GetVentOxygenLevel();
             }
 
             public void EnableOxygen() {
+                this.CloseValve();
                 for (int i = 0; i < this.vents.Count; i++) {
-                    this.vents[i].EnableOxygen();
+                    this.vents[i].Vent.EnableVentOxygen();
                 }
             }
 
             public void DisableOxygen() {
                 for (int i = 0; i < this.vents.Count; i++) {
-                    this.vents[i].DisableOxygen();
+                    this.vents[i].Vent.DisableVentOxygen();
                 }
+            }
+
+            public bool HasValve()
+            {
+                if (this.valve == null)
+                {
+                    return false;
+                }
+                return true;
             }
 
             public void OpenValve() {
                 if (this.valve != null) {
-                    this.valve.Open();
+                    this.valve.OpenDoor();
                 }
             }
 
             public void CloseValve() {
                 if (this.valve != null) {
-                    this.valve.Close();
+                    this.valve.CloseDoor();
                 }
             }
         }
 
-        protected class DebugOutput
+        public struct VentStruct
         {
-            private IList<string> logs = new List<string>();
+            public Vent Vent;
+
+            public VentStruct(Vent vent)
+            {
+                this.Vent = vent;
+            }
+        }
+
+        public struct DoorStruct
+        {
+            public Door Door;
+
+            public DoorStruct(Door door)
+            {
+                this.Door = door;
+            }
+        }
+
+        public struct SensorStruct
+        {
+            public Sensor Sensor;
+
+            public SensorStruct(Sensor sensor)
+            {
+                this.Sensor = sensor;
+            }
+        }
+
+        public class DebugOutput
+        {
+            private List<string> logs = new List<string>();
             private Airlock airlock;
             private BlockHelper blockHelper;
 
@@ -371,22 +440,34 @@ namespace AirlockSystem
                 this.blockHelper = blockHelper;
             }
 
-            public void AddLog(string message) {
-                this.logs.Add(message);
+            public void AddLog(string message)
+            {
+                string last = "";
+                if (this.logs.Count > 0)
+                {
+                    last = this.logs[this.logs.Count - 1];
+                }
+                if (last != message)
+                {
+                    this.logs.Add(message);
+                }
                 this.TrimLogs();
                 this.Render();
             }
 
             private void TrimLogs()
             {
-                int toRemove = 13 - this.logs.Count;
-                if (toRemove > 0)
+                int count = 13;
+                int index = this.logs.Count - count;
+                if (index < 0)
                 {
-                    for (int i = 0; i < toRemove; i++)
-                    {
-                        this.logs.RemoveAt(0);
-                    }
+                    index = 0;
                 }
+                if (count > this.logs.Count)
+                {
+                    count = this.logs.Count;
+                }
+                this.logs = this.logs.GetRange(index, count);
             }
 
             public void Render()
@@ -399,7 +480,7 @@ namespace AirlockSystem
                 }
                 message += this.Line();
                 message += " State: " + this.airlock.State.ToString();
-                message += "      Oxygen: " + this.airlock.GetOxygenLevel().ToString() + "%";
+                message += "      Oxygen: " + this.airlock.GetAirlockOxygenLevel().ToString() + "%";
                 message += "      Tick: " + this.airlock.Tick.ToString();
 
                 IList<IMyTextPanel> panels = this.blockHelper.SearchBlocksOfName<IMyTextPanel>(_DEBUG);
@@ -412,11 +493,11 @@ namespace AirlockSystem
 
             private string Line()
             {
-                return "\n-------------------------------------------------------------\n";
+                return "\n-------------------------------------------------------------\n ";
             }
         }
 
-        protected class Timer
+        public class Timer
         {
             private IMyTimerBlock timer;
             private BlockHelper blockHelper;
@@ -431,19 +512,19 @@ namespace AirlockSystem
                 }
             }
 
-            public void Start()
+            public void StartTimer()
             {
                 this.blockHelper.ApplyAction(this.timer, "OnOff_On");
                 this.blockHelper.ApplyAction(this.timer, "Start");
             }
 
-            public void Stop()
+            public void StopTimer()
             {
                 this.blockHelper.ApplyAction(this.timer, "OnOff_Off");
             }
         }
 
-        protected class Airlock
+        public class Airlock
         {
             private BlockHelper blockHelper;
             private int state = _state_NONE;
@@ -534,6 +615,7 @@ namespace AirlockSystem
                     case _state_WAITING_FOR_PRESSURE:
                         if ((this.vents.GetOxygenLevel() >= 100) || (this.tick > VENT_TIMEOUT))
                         {
+                            this.tick = 0;
                             this.OpenInterior();
                         }
                         break;
@@ -541,52 +623,119 @@ namespace AirlockSystem
                     case _state_WAITING_FOR_VACUUM:
                         if (this.vents.GetOxygenLevel() <= 0)
                         {
-                            OpenExterior();
-                            return;
+                            this.tick = 0;
+                            this.OpenExterior();
                         }
                         else if (this.tick > VENT_TIMEOUT)
                         {
-                            this.vents.OpenValve();
-                            return;
+                            if (this.vents.HasValve())
+                            {
+                                this.vents.OpenValve();
+                            }
+                            else
+                            {
+                                this.tick = 0;
+                                this.OpenExterior();
+                            }
                         }
                         break;
 
                     case _state_WAITING_FOR_INTERIOR_DOORS:
-                        if (this.interiorDoors.IsClosed() || (tick > DOOR_TIMEOUT))
+                        if (this.interiorDoors.AreDoorsClosed() || (tick > DOOR_TIMEOUT))
                         {
+                            this.tick = 0;
+                            this.state = _state_WAITING_FOR_INTERIOR_DOORLOCK;
+                        }
+                        break;
+
+                    case _state_WAITING_FOR_INTERIOR_DOORLOCK:
+                        if (this.tick > DOOR_DELAY)
+                        {
+                            this.tick = 0;
                             this.ContinueDepressurisation();
                         }
                         break;
 
                     case _state_WAITING_FOR_EXTERIOR_DOORS:
-                        if (this.exteriorDoors.IsClosed() || (tick > DOOR_TIMEOUT))
+                        if (this.exteriorDoors.AreDoorsClosed() || (tick > DOOR_TIMEOUT))
                         {
+                            this.tick = 0;
+                            this.state = _state_WAITING_FOR_EXTERIOR_DOORLOCK;
+                        }
+                        break;
+
+                    case _state_WAITING_FOR_EXTERIOR_DOORLOCK:
+                        if (this.tick > DOOR_DELAY)
+                        {
+                            this.tick = 0;
                             this.ContinuePressurisation();
                         }
                         break;
-                }
-            }
 
-            public Airlock(BlockHelper blockHelper)
-            {
-                this.blockHelper = blockHelper;
-                this.Initialise();
+                    case _state_COMPLETE_WAITING_FOR_INTERIOR_DOORS:
+                        if (!this.interiorDoors.AreDoorsClosed() || (tick > DOOR_TIMEOUT))
+                        {
+                            this.tick = 0;
+                            this.state = _state_WAITING_FOR_INTERIOR_DOOROPEN;
+                        }
+                        break;
+
+                    case _state_WAITING_FOR_INTERIOR_DOOROPEN:
+                        if (this.tick > DOOR_DELAY)
+                        {
+                            this.tick = 0;
+                            this.CompleteAirlockPressurisation();
+                        }
+                        break;
+
+                    case _state_COMPLETE_WAITING_FOR_EXTERIOR_DOORS:
+                        if (!this.exteriorDoors.AreDoorsClosed() || (tick > DOOR_TIMEOUT))
+                        {
+                            this.tick = 0;
+                            this.state = _state_WAITING_FOR_EXTERIOR_DOOROPEN;
+                        }
+                        break;
+
+                    case _state_WAITING_FOR_EXTERIOR_DOOROPEN:
+                        if (this.tick > DOOR_DELAY)
+                        {
+                            this.tick = 0;
+                            this.CompleteAirlockDepressurisation();
+                        }
+                        break;
+                }
+
+                this.debug.Render();
             }
 
             private void Initialise()
             {
-                this.state = _state_READY;
                 this.debug = new DebugOutput(this.blockHelper, this);
+                this.debug.AddLog("Initialising");
+                this.DisableAllSensors();
+                if (this.exteriorDoors.AreDoorsClosed())
+                {
+                    this.debug.AddLog("Initial state is pressurised");
+                    this.interiorDoors.OpenDoors();
+                    this.state = _state_COMPLETE_WAITING_FOR_INTERIOR_DOORS;
+                }
+                else
+                {
+                    this.debug.AddLog("Initial state is unpressurised");
+                    this.interiorDoors.CloseDoors();
+                    this.state = _state_COMPLETE_WAITING_FOR_EXTERIOR_DOORS;
+                }
+                this.debug.AddLog("Initialisation Complete");
+                this.timer.StartTimer();
             }
 
             private void StartAirlock()
             {
                 this.state = _state_LOCKED;
-
                 // Detect what's happening from what sensor  
-                if (this.chamberSensors.IsActive())
+                if (this.chamberSensors.AreSensorsActive())
                 {
-                    if (this.interiorDoors.IsClosed())
+                    if (this.interiorDoors.AreDoorsClosed())
                     {
                         // Interior doors are closed, they probably walked from outside  
                         this.PressuriseAirlock();
@@ -599,19 +748,19 @@ namespace AirlockSystem
                     return;
                 }
 
-                if (this.interiorSensors.IsActive())
+                if (this.interiorSensors.AreSensorsActive())
                 {
                     // They walked up to the interior sensor  
-                    if (this.interiorDoors.IsClosed())
+                    if (this.interiorDoors.AreDoorsClosed())
                     {
                         this.PressuriseAirlock();
                         return;
                     }
                 }
 
-                if (this.exteriorSensors.IsActive())
+                if (this.exteriorSensors.AreSensorsActive())
                 {
-                    if (this.exteriorDoors.IsClosed())
+                    if (this.exteriorDoors.AreDoorsClosed())
                     {
                         this.DepressuriseAirlock();
                         return;
@@ -624,32 +773,50 @@ namespace AirlockSystem
 
             private void OpenInterior()
             {
-                this.state = _state_READY;
+                this.state = _state_COMPLETE_WAITING_FOR_INTERIOR_DOORS;
                 this.debug.AddLog("Opening Interior Doors");
-                this.interiorDoors.Open();
-                this.timer.Stop();
-                this.exteriorSensors.Enable();
-                this.chamberSensors.Enable();
-                this.debug.AddLog("*** Pressurisation Complete ***");
+                this.interiorDoors.OpenDoors();
             }
 
             private void OpenExterior()
             {
+                this.state = _state_COMPLETE_WAITING_FOR_EXTERIOR_DOORS;
                 this.debug.AddLog("Opening Exterior Doors");
+                this.exteriorDoors.OpenDoors();
+            }
+
+            private void CompleteAirlockPressurisation()
+            {
                 this.state = _state_READY;
-                this.exteriorDoors.Open();
-                this.timer.Stop();
-                this.interiorSensors.Enable();
-                this.chamberSensors.Enable();
+                this.timer.StopTimer();
+                this.exteriorDoors.DisableDoors();
+                this.interiorDoors.DisableDoors();
+                this.chamberSensors.EnableSensors();
+
+                this.interiorSensors.DisableSensors();
+                this.exteriorSensors.EnableSensors();
+                this.debug.AddLog("*** Pressurisation Complete ***");
+            }
+
+            private void CompleteAirlockDepressurisation()
+            {
+                this.state = _state_READY;
+                this.timer.StopTimer();
+                this.exteriorDoors.DisableDoors();
+                this.interiorDoors.DisableDoors();
+                this.chamberSensors.EnableSensors();
+
+                this.interiorSensors.EnableSensors();
+                this.exteriorSensors.DisableSensors();
                 this.debug.AddLog("***Depressurisation Complete***");
             }
 
             private void PressuriseAirlock()
             {
                 this.debug.AddLog("*** Starting Pressurisation Sequence ****");
-                this.DisableSensors();
-                this.timer.Start();
-                this.exteriorDoors.Close();
+                this.DisableAllSensors();
+                this.timer.StartTimer();
+                this.exteriorDoors.CloseDoors();
                 this.state = _state_WAITING_FOR_EXTERIOR_DOORS;
                 this.debug.AddLog("Waiting for exterior doors to close");
             }
@@ -657,6 +824,7 @@ namespace AirlockSystem
             private void ContinuePressurisation()
             {
                 this.debug.AddLog("Exterior doors closed");
+                this.exteriorDoors.DisableDoors();
                 this.vents.EnableOxygen();
                 this.state = _state_WAITING_FOR_PRESSURE;
                 this.debug.AddLog("Waiting for air pressure");
@@ -665,9 +833,9 @@ namespace AirlockSystem
             private void DepressuriseAirlock()
             {
                 this.debug.AddLog("*** Starting Depressurisation Sequence ****");
-                this.DisableSensors();
-                this.timer.Start();
-                this.interiorDoors.Close();
+                this.DisableAllSensors();
+                this.timer.StartTimer();
+                this.interiorDoors.CloseDoors();
                 this.state = _state_WAITING_FOR_INTERIOR_DOORS;
                 this.debug.AddLog("Waiting for interior doors to close");
             }
@@ -675,16 +843,17 @@ namespace AirlockSystem
             private void ContinueDepressurisation()
             {
                 this.debug.AddLog("Interior doors closed");
+                this.interiorDoors.DisableDoors();
                 this.vents.DisableOxygen();
                 this.state = _state_WAITING_FOR_VACUUM;
                 this.debug.AddLog("Waiting for vacuum");
             }
 
-            private void DisableSensors()
+            private void DisableAllSensors()
             {
-                this.chamberSensors.Disable();
-                this.exteriorSensors.Disable();
-                this.interiorSensors.Disable();
+                this.chamberSensors.DisableSensors();
+                this.exteriorSensors.DisableSensors();
+                this.interiorSensors.DisableSensors();
             }
 
             public string GetStatus()
@@ -693,10 +862,16 @@ namespace AirlockSystem
                 {
                     case _state_WAITING_FOR_PRESSURE:
                     case _state_WAITING_FOR_EXTERIOR_DOORS:
+                    case _state_WAITING_FOR_EXTERIOR_DOORLOCK:
+                    case _state_COMPLETE_WAITING_FOR_INTERIOR_DOORS:
+                    case _state_WAITING_FOR_INTERIOR_DOOROPEN:
                         return "Pressurising";
 
                     case _state_WAITING_FOR_VACUUM:
                     case _state_WAITING_FOR_INTERIOR_DOORS:
+                    case _state_WAITING_FOR_INTERIOR_DOORLOCK:
+                    case _state_COMPLETE_WAITING_FOR_EXTERIOR_DOORS:
+                    case _state_WAITING_FOR_EXTERIOR_DOOROPEN:
                         return "Depressurising";
 
                     case _state_LOCKED:
@@ -713,7 +888,7 @@ namespace AirlockSystem
                 }
             }
 
-            public int GetOxygenLevel()
+            public int GetAirlockOxygenLevel()
             {
                 return this.vents.GetOxygenLevel();
             }
