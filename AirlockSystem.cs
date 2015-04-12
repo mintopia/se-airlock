@@ -38,12 +38,14 @@ namespace AirlockSystem
         const int _state_WAITING_FOR_PRESSURE = 12;
         const int _state_COMPLETE_WAITING_FOR_INTERIOR_DOORS = 13;
         const int _state_WAITING_FOR_INTERIOR_DOOROPEN = 14;
+        const int _state_INITIALISATION_PRESSURISED = 15;
 
         const int _state_WAITING_FOR_INTERIOR_DOORS = 20;
         const int _state_WAITING_FOR_INTERIOR_DOORLOCK = 21;
         const int _state_WAITING_FOR_VACUUM = 22;
         const int _state_COMPLETE_WAITING_FOR_EXTERIOR_DOORS = 23;
         const int _state_WAITING_FOR_EXTERIOR_DOOROPEN = 24;
+        const int _state_INITIALISATION_UNPRESSURISED = 25;
 
         // The names of our sensor groups
         const string _sensor_INTERIOR = AIRLOCK_PREFIX + " Interior Sensors";
@@ -59,6 +61,10 @@ namespace AirlockSystem
         const string _VALVE = AIRLOCK_PREFIX + " Valve";
         const string _TIMER = AIRLOCK_PREFIX + " Timer";
         const string _DEBUG = AIRLOCK_PREFIX + " Debug";
+
+        // Version String
+        const string VERSION = "Entropy Airlock v6.4";
+        const string GITHUB_URL = "https://github.com/murray-mint/se-airlock";
 
         Airlock airlock = new Airlock();
 
@@ -703,6 +709,24 @@ namespace AirlockSystem
                             this.CompleteAirlockDepressurisation();
                         }
                         break;
+
+                    case _state_INITIALISATION_PRESSURISED:
+                        if (this.tick > DOOR_DELAY)
+                        {
+                            this.tick = 0;
+                            this.CompleteAirlockPressurisation();
+                            this.execute(blockHelper);
+                        }
+                        break;
+
+                    case _state_INITIALISATION_UNPRESSURISED:
+                        if (this.tick > DOOR_DELAY)
+                        {
+                            this.tick = 0;
+                            this.CompleteAirlockDepressurisation();
+                            this.execute(blockHelper);
+                        }
+                        break;
                 }
 
                 this.debug.Render();
@@ -712,18 +736,20 @@ namespace AirlockSystem
             {
                 this.debug = new DebugOutput(this.blockHelper, this);
                 this.debug.AddLog("Initialising");
+                this.debug.AddLog(VERSION);
+                this.debug.AddLog(GITHUB_URL);
                 this.DisableAllSensors();
                 if (this.exteriorDoors.AreDoorsClosed())
                 {
                     this.debug.AddLog("Initial state is pressurised");
                     this.interiorDoors.OpenDoors();
-                    this.state = _state_COMPLETE_WAITING_FOR_INTERIOR_DOORS;
+                    this.state = _state_INITIALISATION_PRESSURISED;
                 }
                 else
                 {
                     this.debug.AddLog("Initial state is unpressurised");
                     this.interiorDoors.CloseDoors();
-                    this.state = _state_COMPLETE_WAITING_FOR_EXTERIOR_DOORS;
+                    this.state = _state_INITIALISATION_UNPRESSURISED;
                 }
                 this.debug.AddLog("Initialisation Complete");
                 this.timer.StartTimer();
@@ -878,6 +904,8 @@ namespace AirlockSystem
                         return "Locked";
 
                     case _state_NONE:
+                    case _state_INITIALISATION_PRESSURISED:
+                    case _state_INITIALISATION_UNPRESSURISED:
                         return "Initialising";
 
                     case _state_READY:
