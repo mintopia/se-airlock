@@ -75,4 +75,4 @@ The sensors in this group should be placed at the approaches to the exterior air
 
 **Name** ```<AIRLOCK_PREFIX> Debug```
 
-Any TextPanels with this name will be updated with debug output of the airlock including what is currently being executed and the current state. You do not need these.
+Any TextPanels with this name will be updated with debug output of the airlock including what is currently being executed and the current state. You do not need these, but they are quite cool!
