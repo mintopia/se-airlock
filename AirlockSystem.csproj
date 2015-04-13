@@ -7,8 +7,8 @@
     <ProjectGuid>{5E8E3E04-E08A-4E08-8106-2A0E07FDB8A3}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Airlock</RootNamespace>
-    <AssemblyName>Airlock</AssemblyName>
+    <RootNamespace>AirlockSystem</RootNamespace>
+    <AssemblyName>AirlockSystem</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -44,13 +44,27 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Airlock.cs" />
     <Compile Include="AirlockSystem.cs" />
+    <Compile Include="Blocks\Door.cs" />
+    <Compile Include="Blocks\Sensor.cs" />
+    <Compile Include="Blocks\Timer.cs" />
+    <Compile Include="Blocks\Vent.cs" />
+    <Compile Include="UserConfig.cs" />
+    <Compile Include="Groups\DoorGroup.cs" />
+    <Compile Include="Groups\SensorGroup.cs" />
+    <Compile Include="Groups\VentGroup.cs" />
+    <Compile Include="Utils\BlockHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Utils\DebugOutput.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>"D:\Projects\Space Engineers\ScriptBuilder.exe" "$(SolutionDir)\" $(ProjectName)</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
